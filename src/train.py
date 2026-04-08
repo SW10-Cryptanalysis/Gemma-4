@@ -21,7 +21,7 @@ class PretokenizedCipherDataset(Dataset):
     """Dataset wrapper for loading pre-tokenized cipher samples from disk."""
 
     def __init__(
-        self, directory_path: str | Path, max_samples: int | None = None
+        self, directory_path: str | Path, max_samples: int | None = None,
     ) -> None:
         """Load a serialized Hugging Face dataset from `directory_path`."""
         self.hf_dataset = load_from_disk(str(directory_path))
@@ -29,7 +29,7 @@ class PretokenizedCipherDataset(Dataset):
         if max_samples is not None and max_samples < len(self.hf_dataset):
             if int(os.environ.get("LOCAL_RANK", 0)) == 0:
                 logger.info(
-                    f"Subsetting dataset from {len(self.hf_dataset):,} to {max_samples:,} samples."
+                    f"Subsetting dataset from {len(self.hf_dataset):,} to {max_samples:,} samples.",
                 )
             self.hf_dataset = self.hf_dataset.select(range(max_samples))
 
@@ -76,7 +76,7 @@ def train() -> None:
     max_train_samples = subset_size if subset_size > 0 else None
 
     train_ds = PretokenizedCipherDataset(
-        cfg.tokenized_train_dir, max_samples=max_train_samples
+        cfg.tokenized_train_dir, max_samples=max_train_samples,
     )
     val_ds = PretokenizedCipherDataset(cfg.tokenized_val_dir)
 
