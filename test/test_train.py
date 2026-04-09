@@ -1,6 +1,5 @@
 import pytest
 import torch
-from unittest.mock import MagicMock, PropertyMock
 
 from src.train import PretokenizedCipherDataset, train
 from src.config import Config, cfg
@@ -11,16 +10,16 @@ from src.config import Config, cfg
 # ---------------------------------------------------------------------------
 
 
-def _make_hf_dataset(n: int = 10, seq_len: int = 100) -> MagicMock:
+def _make_hf_dataset(mocker, n: int = 10, seq_len: int = 100):
     """Return a minimal fake HuggingFace Dataset with *n* identical samples."""
     sample = {
         "input_ids": list(range(seq_len)),
         "labels": [-100] * (seq_len // 2) + list(range(seq_len // 2)),
     }
-    ds = MagicMock()
-    ds.__len__ = MagicMock(return_value=n)
-    ds.__getitem__ = MagicMock(side_effect=lambda i: sample)
-    ds.select = MagicMock(return_value=ds)  # select returns itself by default
+    ds = mocker.Mock()
+    ds.__len__ = mocker.Mock(return_value=n)
+    ds.__getitem__ = mocker.Mock(side_effect=lambda i: sample)
+    ds.select = mocker.Mock(return_value=ds)  # select returns itself by default
     return ds
 
 
@@ -31,7 +30,7 @@ def _make_hf_dataset(n: int = 10, seq_len: int = 100) -> MagicMock:
 
 class TestPretokenizedCipherDataset:
     def test_len_matches_underlying_dataset(self, mocker):
-        ds_mock = _make_hf_dataset(n=10)
+        ds_mock = _make_hf_dataset(mocker, n=10)
         mocker.patch("src.train.load_from_disk", return_value=ds_mock)
 
         ds = PretokenizedCipherDataset("fake/path")
@@ -39,7 +38,7 @@ class TestPretokenizedCipherDataset:
         assert len(ds) == 10
 
     def test_getitem_returns_input_ids_and_labels(self, mocker):
-        ds_mock = _make_hf_dataset(n=5)
+        ds_mock = _make_hf_dataset(mocker, n=5)
         mocker.patch("src.train.load_from_disk", return_value=ds_mock)
 
         ds = PretokenizedCipherDataset("fake/path")
@@ -49,7 +48,7 @@ class TestPretokenizedCipherDataset:
         assert "labels" in item
 
     def test_getitem_returns_long_tensors(self, mocker):
-        ds_mock = _make_hf_dataset(n=5)
+        ds_mock = _make_hf_dataset(mocker, n=5)
         mocker.patch("src.train.load_from_disk", return_value=ds_mock)
 
         ds = PretokenizedCipherDataset("fake/path")
@@ -59,7 +58,7 @@ class TestPretokenizedCipherDataset:
         assert item["labels"].dtype == torch.long
 
     def test_getitem_returns_1d_tensors(self, mocker):
-        ds_mock = _make_hf_dataset(n=5)
+        ds_mock = _make_hf_dataset(mocker, n=5)
         mocker.patch("src.train.load_from_disk", return_value=ds_mock)
 
         ds = PretokenizedCipherDataset("fake/path")
@@ -74,9 +73,9 @@ class TestPretokenizedCipherDataset:
             "input_ids": list(range(cfg.max_context + 500)),
             "labels": list(range(cfg.max_context + 500)),
         }
-        ds_mock = MagicMock()
-        ds_mock.__len__ = MagicMock(return_value=1)
-        ds_mock.__getitem__ = MagicMock(return_value=sample)
+        ds_mock = mocker.Mock()
+        ds_mock.__len__ = mocker.Mock(return_value=1)
+        ds_mock.__getitem__ = mocker.Mock(return_value=sample)
         mocker.patch("src.train.load_from_disk", return_value=ds_mock)
 
         ds = PretokenizedCipherDataset("fake/path")
@@ -92,9 +91,9 @@ class TestPretokenizedCipherDataset:
             "input_ids": list(range(short_len)),
             "labels": list(range(short_len)),
         }
-        ds_mock = MagicMock()
-        ds_mock.__len__ = MagicMock(return_value=1)
-        ds_mock.__getitem__ = MagicMock(return_value=sample)
+        ds_mock = mocker.Mock()
+        ds_mock.__len__ = mocker.Mock(return_value=1)
+        ds_mock.__getitem__ = mocker.Mock(return_value=sample)
         mocker.patch("src.train.load_from_disk", return_value=ds_mock)
 
         ds = PretokenizedCipherDataset("fake/path")
@@ -104,7 +103,7 @@ class TestPretokenizedCipherDataset:
 
     def test_max_samples_subsets_dataset(self, mocker):
         """When max_samples is given, dataset.select must be called with that range."""
-        ds_mock = _make_hf_dataset(n=100)
+        ds_mock = _make_hf_dataset(mocker, n=100)
         mocker.patch("src.train.load_from_disk", return_value=ds_mock)
 
         PretokenizedCipherDataset("fake/path", max_samples=20)
@@ -113,7 +112,7 @@ class TestPretokenizedCipherDataset:
 
     def test_none_max_samples_skips_select(self, mocker):
         """With max_samples=None the full dataset is used; select must not be called."""
-        ds_mock = _make_hf_dataset(n=100)
+        ds_mock = _make_hf_dataset(mocker, n=100)
         mocker.patch("src.train.load_from_disk", return_value=ds_mock)
 
         PretokenizedCipherDataset("fake/path", max_samples=None)
@@ -122,7 +121,7 @@ class TestPretokenizedCipherDataset:
 
     def test_max_samples_larger_than_dataset_skips_select(self, mocker):
         """Requesting more samples than available must not call select."""
-        ds_mock = _make_hf_dataset(n=10)
+        ds_mock = _make_hf_dataset(mocker, n=10)
         mocker.patch("src.train.load_from_disk", return_value=ds_mock)
 
         PretokenizedCipherDataset("fake/path", max_samples=999)
@@ -146,25 +145,25 @@ def captured_training_args(mocker, tmp_path):
     mocker.patch.object(
         Config,
         "final_output_dir",
-        new_callable=PropertyMock,
+        new_callable=mocker.PropertyMock,
         return_value=tmp_path,
     )
 
     # Suppress model loading.
-    mock_model = MagicMock()
+    mock_model = mocker.Mock()
     mocker.patch("src.train.get_model", return_value=mock_model)
 
     # Suppress dataset loading.
-    fake_ds = _make_hf_dataset(n=4, seq_len=10)
+    fake_ds = _make_hf_dataset(mocker, n=4, seq_len=10)
     mocker.patch("src.train.PretokenizedCipherDataset", return_value=fake_ds)
 
     # Capture TrainingArguments call without constructing a real one.
     mock_args_cls = mocker.patch(
-        "src.train.TrainingArguments", return_value=MagicMock()
+        "src.train.TrainingArguments", return_value=mocker.Mock()
     )
 
     # Prevent real Trainer / CUDA usage.
-    mock_trainer = MagicMock()
+    mock_trainer = mocker.Mock()
     mocker.patch("src.train.Trainer", return_value=mock_trainer)
     mocker.patch("torch.cuda.get_device_name", return_value="Mock GPU")
 

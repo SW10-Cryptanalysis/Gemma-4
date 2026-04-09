@@ -1,7 +1,6 @@
 import argparse
 import pytest
 import torch
-from unittest.mock import MagicMock
 
 from src.evaluate import evaluate
 from src.config import cfg
@@ -62,10 +61,10 @@ def patched_evaluate(mocker):
     mocker.patch("torch.cuda.is_bf16_supported", return_value=True)
 
     # Build a model mock whose generate() can be configured per-test.
-    mock_model = MagicMock()
-    mock_model.config = MagicMock()
+    mock_model = mocker.Mock()
+    mock_model.config = mocker.Mock()
     mock_model.config.use_cache = True
-    mock_model.eval = MagicMock()
+    mock_model.eval = mocker.Mock()
 
     mock_from_pretrained = mocker.patch(
         "src.evaluate.AutoModelForCausalLM.from_pretrained",
@@ -76,9 +75,9 @@ def patched_evaluate(mocker):
     state = {"samples": []}
 
     def _make_ds():
-        ds = MagicMock()
-        ds.__len__ = MagicMock(side_effect=lambda: len(state["samples"]))
-        ds.__getitem__ = MagicMock(
+        ds = mocker.Mock()
+        ds.__len__ = mocker.Mock(side_effect=lambda: len(state["samples"]))
+        ds.__getitem__ = mocker.Mock(
             side_effect=lambda i: {"input_ids": state["samples"][i]}
         )
         return ds

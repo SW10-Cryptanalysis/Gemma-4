@@ -1,5 +1,4 @@
 import json
-from unittest.mock import patch
 from src.config import Config, cfg, BUFFER, UNIQUE_LETTER_COUNT
 
 
@@ -112,81 +111,71 @@ class TestVocabSize:
     def test_vocab_size_covers_all_special_tokens_and_letters(self):
         assert cfg.vocab_size >= cfg.char_offset + UNIQUE_LETTER_COUNT
 
-    def test_load_homophones_updates_unique_homophones(self, tmp_path):
+    def test_load_homophones_updates_unique_homophones(self, tmp_path, mocker):
         c = Config()
         meta = {"max_symbol_id": 3000}
         meta_path = tmp_path / "metadata.json"
         meta_path.write_text(json.dumps(meta))
 
-        with (
-            patch("os.path.join", return_value=str(meta_path)),
-            patch("os.path.exists", return_value=True),
-        ):
-            c.load_homophones()
+        mocker.patch("os.path.join", return_value=str(meta_path))
+        mocker.patch("os.path.exists", return_value=True)
+        c.load_homophones()
 
         assert c.unique_homophones == 3000
 
-    def test_load_homophones_keeps_vocab_size_multiple_of_64(self, tmp_path):
+    def test_load_homophones_keeps_vocab_size_multiple_of_64(self, tmp_path, mocker):
         c = Config()
         meta = {"max_symbol_id": 3001}  # not naturally aligned
         meta_path = tmp_path / "metadata.json"
         meta_path.write_text(json.dumps(meta))
 
-        with (
-            patch("os.path.join", return_value=str(meta_path)),
-            patch("os.path.exists", return_value=True),
-        ):
-            c.load_homophones()
+        mocker.patch("os.path.join", return_value=str(meta_path))
+        mocker.patch("os.path.exists", return_value=True)
+        c.load_homophones()
 
         assert c.vocab_size % 64 == 0
 
-    def test_load_homophones_includes_letters_and_buffer(self, tmp_path):
+    def test_load_homophones_includes_letters_and_buffer(self, tmp_path, mocker):
         c = Config()
         meta = {"max_symbol_id": 3000}
         meta_path = tmp_path / "metadata.json"
         meta_path.write_text(json.dumps(meta))
 
-        with (
-            patch("os.path.join", return_value=str(meta_path)),
-            patch("os.path.exists", return_value=True),
-        ):
-            c.load_homophones()
+        mocker.patch("os.path.join", return_value=str(meta_path))
+        mocker.patch("os.path.exists", return_value=True)
+        c.load_homophones()
 
         assert c.vocab_size >= 3000 + UNIQUE_LETTER_COUNT + BUFFER
 
-    def test_load_homophones_missing_file_keeps_default(self):
+    def test_load_homophones_missing_file_keeps_default(self, mocker):
         c = Config()
         original = c.unique_homophones
 
-        with patch("os.path.exists", return_value=False):
-            c.load_homophones()
+        mocker.patch("os.path.exists", return_value=False)
+        c.load_homophones()
 
         assert c.unique_homophones == original
 
-    def test_load_homophones_invalid_json_keeps_default(self, tmp_path):
+    def test_load_homophones_invalid_json_keeps_default(self, tmp_path, mocker):
         c = Config()
         original = c.unique_homophones
         bad_path = tmp_path / "metadata.json"
         bad_path.write_text("{ this is not valid json }")
 
-        with (
-            patch("os.path.join", return_value=str(bad_path)),
-            patch("os.path.exists", return_value=True),
-        ):
-            c.load_homophones()
+        mocker.patch("os.path.join", return_value=str(bad_path))
+        mocker.patch("os.path.exists", return_value=True)
+        c.load_homophones()
 
         assert c.unique_homophones == original
 
-    def test_load_homophones_missing_key_keeps_default(self, tmp_path):
+    def test_load_homophones_missing_key_keeps_default(self, tmp_path, mocker):
         c = Config()
         original = c.unique_homophones
         bad_path = tmp_path / "metadata.json"
         bad_path.write_text(json.dumps({"wrong_key": 999}))
 
-        with (
-            patch("os.path.join", return_value=str(bad_path)),
-            patch("os.path.exists", return_value=True),
-        ):
-            c.load_homophones()
+        mocker.patch("os.path.join", return_value=str(bad_path))
+        mocker.patch("os.path.exists", return_value=True)
+        c.load_homophones()
 
         assert c.unique_homophones == original
