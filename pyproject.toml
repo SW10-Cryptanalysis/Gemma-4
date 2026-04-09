@@ -25,7 +25,7 @@ dev = [
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["test"]
-addopts = "-v --tb=short --cov=src --cov-report=term-missing"
+addopts = "--model-family gemma --model-path google/gemma-4-E4B -v --tb=short --cov=src --cov-report=term-missing"
 
 [tool.coverage.report]
 exclude_also = [
