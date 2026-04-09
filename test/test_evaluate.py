@@ -218,11 +218,11 @@ class TestDecodePrediction:
 
         # Construct expected generated output: only the plaintext portion.
         input_part = _input_part(full_seq)
-        expected_gen = (
-            input_part
-            + [cfg.char_offset + 0, cfg.char_offset + 1, cfg.char_offset + 2]
-            + [cfg.eos_token_id]
-        )
+        expected_gen = input_part + [
+            cfg.char_offset + 0,
+            cfg.char_offset + 1,
+            cfg.char_offset + 2,
+        ]
         patched_evaluate["model"].generate.side_effect = lambda t, **kw: torch.tensor(
             [expected_gen]
         )
@@ -230,24 +230,22 @@ class TestDecodePrediction:
         # No exception means all token IDs were decoded without error.
         evaluate()
 
-    def test_eos_token_stops_decoding(self, patched_evaluate):
-        """Tokens after EOS must be ignored in the decoded output."""
+    def test_eos_token_handled_as_placeholder(self, patched_evaluate):
+        """Tokens generated as EOS must map to '?' to maintain length for Hamming dist."""
         full_seq = _make_full_sequence("ab")
         patched_evaluate["set_samples"]([full_seq])
 
         input_part = _input_part(full_seq)
-        # Generate 'a', EOS, 'b' — 'b' should be ignored.
-        gen_with_eos_early = input_part + [
+        # Generate 'a', EOS.
+        gen_with_eos = input_part + [
             cfg.char_offset + 0,
             cfg.eos_token_id,
-            cfg.char_offset + 1,
         ]
         patched_evaluate["model"].generate.side_effect = lambda t, **kw: torch.tensor(
-            [gen_with_eos_early]
+            [gen_with_eos]
         )
 
-        # Should run without error; the SER comparison uses min_len so 'b' is
-        # excluded from the predicted string's length.
+        # Should run without error and correctly substitute ? for EOS
         evaluate()
         assert patched_evaluate["model"].generate.called
 
@@ -265,25 +263,24 @@ class TestDecodePrediction:
         evaluate()
         assert patched_evaluate["model"].generate.called
 
-    def test_homophone_tokens_ignored_in_output(self, patched_evaluate):
-        """Homophone token IDs (< char_offset, not space/eos) must be skipped."""
+    def test_stray_homophone_tokens_handled_as_placeholder(self, patched_evaluate):
+        """Homophone token IDs in the output must map to '?' to maintain length."""
         full_seq = _make_full_sequence("ab")
         patched_evaluate["set_samples"]([full_seq])
 
         input_part = _input_part(full_seq)
-        # Inject a stray homophone token (ID=5) between 'a' and 'b'.
+        # Inject a stray homophone token (ID=5) alongside 'a'.
         gen_with_stray = input_part + [
             5,
             cfg.char_offset + 0,
-            cfg.char_offset + 1,
-            cfg.eos_token_id,
         ]
         patched_evaluate["model"].generate.side_effect = lambda t, **kw: torch.tensor(
             [gen_with_stray]
         )
 
-        # Must not raise; the stray token is simply ignored.
+        # Must not raise; the stray token maps to "?" under force_exact_len.
         evaluate()
+        assert patched_evaluate["model"].generate.called
 
     def test_samples_without_sep_token_are_skipped(self, patched_evaluate):
         """Samples missing the SEP token must be skipped gracefully."""
@@ -301,14 +298,15 @@ class TestDecodePrediction:
 
 
 class TestGenerateTokenIdConfig:
-    def test_generate_receives_correct_eos_token_id(self, patched_evaluate):
+    def test_generate_omits_eos_token_id(self, patched_evaluate):
+        """Ensures eos_token_id is not passed to generate(), preventing early stopping."""
         full_seq = _make_full_sequence("ab")
         patched_evaluate["set_samples"]([full_seq])
 
         evaluate()
 
         _, gen_kwargs = patched_evaluate["model"].generate.call_args
-        assert gen_kwargs.get("eos_token_id") == cfg.eos_token_id
+        assert "eos_token_id" not in gen_kwargs
 
     def test_generate_receives_correct_pad_token_id(self, patched_evaluate):
         full_seq = _make_full_sequence("ab")
@@ -328,12 +326,16 @@ class TestGenerateTokenIdConfig:
         _, gen_kwargs = patched_evaluate["model"].generate.call_args
         assert gen_kwargs.get("bos_token_id") == cfg.bos_token_id
 
-    def test_generate_max_new_tokens_bounded(self, patched_evaluate):
-        """max_new_tokens must be at most half the max context (plaintext side only)."""
-        full_seq = _make_full_sequence("ab")
+    def test_generate_uses_target_len_for_new_tokens(self, patched_evaluate):
+        """min_new_tokens and max_new_tokens must strictly equal the ground truth length."""
+        plaintext = "abcd"
+        full_seq = _make_full_sequence(plaintext)
         patched_evaluate["set_samples"]([full_seq])
 
         evaluate()
 
         _, gen_kwargs = patched_evaluate["model"].generate.call_args
-        assert gen_kwargs.get("max_new_tokens") <= cfg.max_context // 2
+        target_len = len(plaintext)
+
+        assert gen_kwargs.get("min_new_tokens") == target_len
+        assert gen_kwargs.get("max_new_tokens") == target_len

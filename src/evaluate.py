@@ -12,6 +12,23 @@ logger = logging.getLogger("evaluate")
 logger.addHandler(handler)
 
 
+def decode_prediction(ids: list[int], force_exact_len: bool = False) -> str:
+    chars = []
+    for idx in ids:
+        if idx == cfg.space_token_id:
+            chars.append("_")
+        elif idx >= cfg.char_offset:
+            chars.append(chr(idx - cfg.char_offset + ord("a")))
+        elif idx == cfg.eos_token_id:
+            if not force_exact_len:
+                break
+            chars.append("?")
+        else:
+            if force_exact_len:
+                chars.append("?")
+    return "".join(chars)
+
+
 def evaluate() -> None:
     """Evaluate the SER of the fine-tuned model utilizing the generative cache."""
     parser = argparse.ArgumentParser()
@@ -36,22 +53,6 @@ def evaluate() -> None:
     # Re-enable cache for fast autoregressive generation
     model.config.use_cache = True
     model.eval()
-
-    def decode_prediction(ids: list[int], force_exact_len: bool = False) -> str:
-        chars = []
-        for idx in ids:
-            if idx == cfg.space_token_id:
-                chars.append("_")
-            elif idx >= cfg.char_offset:
-                chars.append(chr(idx - cfg.char_offset + ord("a")))
-            elif idx == cfg.eos_token_id:
-                if not force_exact_len:
-                    break
-                chars.append("?")
-            else:
-                if force_exact_len:
-                    chars.append("?")
-        return "".join(chars)
 
     test_arrow_path = cfg.tokenized_test_dir
     logger.info(f"Loading Test data from Arrow shards at {test_arrow_path}...")
@@ -97,7 +98,10 @@ def evaluate() -> None:
         if min_len > 0:
             # Hamming distance calculates the number of mismatching characters at identical positions
             dist = sum(
-                c1 != c2 for c1, c2 in zip(true_plain[:min_len], pred_plain[:min_len])
+                c1 != c2
+                for c1, c2 in zip(
+                    true_plain[:min_len], pred_plain[:min_len], strict=True,
+                )
             )
 
             # Add penalty for any length mismatch just in case (though lengths should now be perfectly equal)
