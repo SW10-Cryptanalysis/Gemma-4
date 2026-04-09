@@ -12,12 +12,16 @@ logger.setLevel(logging.INFO)
 
 
 def get_model() -> AutoModelForCausalLM:
-    """Load pre-trained Gemma-4 and adapt it for sequence-bottleneck conditions."""
+    """Load pre-trained model and adapt it for sequence-bottleneck conditions."""
     logger.info(f"Loading pre-trained model: {cfg.model_name_or_path}")
 
     model_config = AutoConfig.from_pretrained(
         cfg.model_name_or_path,
-        attn_implementation="flash_attention_2",
+        attn_implementation=(
+            "flash_attention_2"
+            if cfg.model_family in cfg.FLASH_ATTN_COMPATIBLE
+            else "eager"
+        ),
         use_cache=False,
     )
 
@@ -34,7 +38,7 @@ def get_model() -> AutoModelForCausalLM:
     model.resize_token_embeddings(cfg.vocab_size)
 
     # Reinitialize embeddings — the pre-trained values for token IDs 0–2707
-    # encode Gemma-4's native vocabulary, which is meaningless for homophones.
+    # encode the model's native vocabulary, which is meaningless for homophones.
     init_std = model.config.initializer_range  # typically 0.02 for Gemma-4
     model.model.embed_tokens.weight.data.normal_(mean=0.0, std=init_std)
     if model.lm_head.weight.data_ptr() != model.model.embed_tokens.weight.data_ptr():

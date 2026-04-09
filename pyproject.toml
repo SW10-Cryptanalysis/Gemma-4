@@ -1,7 +1,7 @@
 [project]
-name = "gemma-4"
+name = "fine-tuning-hf-models"
 version = "0.1.0"
-description = "Fine-tuning Gemma-4 E4B on a custom dataset."
+description = "Fine-tuning HF models on a custom dataset."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

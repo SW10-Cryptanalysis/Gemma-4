@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=gemma_4_finetune
+#SBATCH --job-name=finetune_hf_model
 #SBATCH --output=logs/slurm_%x_%j.out
 #SBATCH --error=logs/slurm_%x_%j.err
 #SBATCH --time=12:00:00
@@ -10,7 +10,7 @@
 
 set -e
 
-PROJECT_DIR=/ceph/project/SW10-CausalLM/Gemma-4
+PROJECT_DIR=/ceph/project/SW10-CausalLM/fine-tuning-hf-models
 cd $PROJECT_DIR
 
 mkdir -p logs

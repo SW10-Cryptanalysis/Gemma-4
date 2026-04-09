@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 from dataclasses import dataclass
 import logging
 import argparse
@@ -21,6 +22,7 @@ handler.setFormatter(EasyFormatter())
 logger = logging.getLogger("config")
 logger.addHandler(handler)
 
+VALID_FAMILIES = ["gemma", "llama", "mistral", "jamba", "mamba"]
 
 parser = argparse.ArgumentParser(add_help=False)
 parser.add_argument(
@@ -29,15 +31,56 @@ parser.add_argument(
     default=False,
     help="If enabled the model trains without space tokens in the training dataset",
 )
+parser.add_argument(
+    "--model-family",
+    type=str,
+    default=None,
+    choices=VALID_FAMILIES,
+    help=f"Model architecture family. Required. Choose from: {', '.join(VALID_FAMILIES)}",
+)
+parser.add_argument(
+    "--model-path",
+    type=str,
+    default=None,
+    help="HuggingFace model identifier or local path to the pre-trained model. Required.",
+)
 cli_args, _ = parser.parse_known_args()
+
+# Fail early and clearly if required flags are missing
+_errors = []
+if cli_args.model_family is None:
+    _errors.append(
+        "  --model-family is required. Choose from: " + ", ".join(VALID_FAMILIES)
+    )
+if cli_args.model_path is None:
+    _errors.append(
+        "  --model-path is required. Provide a HuggingFace model ID or local path."
+    )
+if _errors:
+    logger.error("Missing required arguments:\n" + "\n".join(_errors))
+    logger.error(
+        "Example: sbatch train.slurm --model-family gemma --model-path google/gemma-4-E4B"
+    )
+    sys.exit(1)
 
 
 @dataclass
 class Config:
-    """Config dataclass optimized for fine-tuning pre-trained Gemma-4."""
+    """Config dataclass for fine-tuning pre-trained HuggingFace causal LMs."""
 
-    # HF Model Identifier
-    model_name_or_path: str = "google/gemma-4-E4B"
+    FSDP_LAYER_MAP = {
+        "gemma": "Gemma4TextDecoderLayer",
+        "llama": "LlamaDecoderLayer",
+        "mistral": "MistralDecoderLayer",
+        "jamba": "JambaDecoderLayer",
+        "mamba": None,  # Mamba is not transformer-based; FSDP wrapping differs
+    }
+
+    FLASH_ATTN_COMPATIBLE = {"gemma", "llama", "mistral", "jamba"}
+
+    # HF Model Identifier and family — set from CLI flags
+    model_name_or_path: str = cli_args.model_path
+    model_family: str = cli_args.model_family
 
     # ARCHITECTURE
     unique_homophones: int = UNIQUE_HOMOPHONE_COUNT
@@ -49,7 +92,7 @@ class Config:
     def final_output_dir(self) -> Path:
         """Return the output directory path for saving fine-tuned models, differentiated by space token usage."""
         suffix = "spaces" if self.use_spaces else "normal"
-        return self.output_dir / suffix
+        return self.output_dir / self.model_family / suffix
 
     # Token IDs
     pad_token_id: int = 0
@@ -100,28 +143,19 @@ class Config:
 
     @property
     def tokenized_train_dir(self) -> Path:
-        """Dictionary path for tokenized training data.
-
-        Differentiates between spaced and normal tokenization based on config.
-        """
+        """Path for tokenized training data."""
         suffix = "spaced" if self.use_spaces else "normal"
         return self.data_dir / f"tokenized_{suffix}" / "Training"
 
     @property
     def tokenized_val_dir(self) -> Path:
-        """Dictionary path for tokenized validation data.
-
-        Differentiates between spaced and normal tokenization based on config.
-        """
+        """Path for tokenized validation data."""
         suffix = "spaced" if self.use_spaces else "normal"
         return self.data_dir / f"tokenized_{suffix}" / "Validation"
 
     @property
     def tokenized_test_dir(self) -> Path:
-        """Dictionary path for tokenized test data.
-
-        Differentiates between spaced and normal tokenization based on config.
-        """
+        """Path for tokenized test data."""
         suffix = "spaced" if self.use_spaces else "normal"
         return self.data_dir / f"tokenized_{suffix}" / "Test"
 

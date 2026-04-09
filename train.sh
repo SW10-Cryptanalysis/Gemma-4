@@ -5,13 +5,12 @@ set -e
 cd /work
 
 # 2. Clone the repository and specific branch if it doesn't exist yet
-if [ ! -d "Gemma" ]; then
+if [ ! -d "fine-tuning-hf-models" ]; then
     echo "Cloning repository..."
-    git clone -b main https://github.com/SW10-Cryptanalysis/Gemma-4.git
-    
+    git clone -b main https://github.com/SW10-Cryptanalysis/fine-tuning-hf-models.git
 fi
 
-cd Gemma-4
+cd fine-tuning-hf-models
 mkdir -p logs
 export HF_HUB_ENABLE_HF_TRANSFER=1
 
@@ -23,7 +22,7 @@ echo "Training Job started on $(hostname) at $(date) with $NUM_GPUS GPU(s)"
 export CUDA_VISIBLE_DEVICES=$(seq -s, 0 $((NUM_GPUS-1)))
 nvidia-smi
 
-# Ensure uv is installed 
+# Ensure uv is installed
 if ! command -v uv &> /dev/null; then
     curl -LsSf https://astral.sh/uv/install.sh | sh
     export PATH="$HOME/.cargo/bin:$PATH"
@@ -43,7 +42,7 @@ echo "Creating virtual environment..."
 uv venv
 source .venv/bin/activate
 
-# Install project dependencies (removed --system)
+# Install project dependencies
 uv pip install -e .
 
 # Install hf_transfer to enable faster Hugging Face downloads
@@ -60,6 +59,8 @@ echo "Launching torchrun with $NUM_GPUS processes..."
 uv run torchrun \
     --nproc_per_node=$NUM_GPUS \
     --master_port=$MASTER_PORT \
-    -m src.train
+    -m src.train \
+    --model-family llama \
+    --model-path meta-llama/Llama-3.2-3B
 
 echo "Training Job finished at $(date)"
