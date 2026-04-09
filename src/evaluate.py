@@ -64,6 +64,17 @@ def evaluate() -> None:
 
     logger.info(f"Starting generation on {num_samples} samples...")
 
+    # Build the allowed plaintext token ID set once
+    plaintext_token_ids = list(
+        range(cfg.char_offset, cfg.char_offset + cfg.unique_letters),
+    )
+
+    if cfg.use_spaces:
+        plaintext_token_ids.append(cfg.space_token_id)
+
+    def plaintext_only(batch_id: int, input_ids: torch.Tensor) -> list[int]:
+        return plaintext_token_ids
+
     for i in range(num_samples):
         item = test_ds[i]
         all_ids = item["input_ids"]
@@ -89,6 +100,7 @@ def evaluate() -> None:
                 use_cache=True,
                 pad_token_id=cfg.pad_token_id,
                 bos_token_id=cfg.bos_token_id,
+                prefix_allowed_tokens_fn=plaintext_only,
             )
 
         generated_part = output_ids[0][len(input_ids) :]
