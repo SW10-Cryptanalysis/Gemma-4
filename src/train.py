@@ -110,7 +110,7 @@ def train() -> None:
         fsdp="full_shard auto_wrap",
         fsdp_config={
             "transformer_layer_cls_to_wrap": cfg.FSDP_LAYER_MAP.get(
-                cfg.model_family, None
+                cfg.model_family, None,
             ),
             "backward_prefetch": "backward_pre",
             "use_orig_params": True,

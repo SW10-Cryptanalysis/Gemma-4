@@ -50,16 +50,16 @@ cli_args, _ = parser.parse_known_args()
 _errors = []
 if cli_args.model_family is None:
     _errors.append(
-        "  --model-family is required. Choose from: " + ", ".join(VALID_FAMILIES)
+        "  --model-family is required. Choose from: " + ", ".join(VALID_FAMILIES),
     )
 if cli_args.model_path is None:
     _errors.append(
-        "  --model-path is required. Provide a HuggingFace model ID or local path."
+        "  --model-path is required. Provide a HuggingFace model ID or local path.",
     )
 if _errors:
     logger.error("Missing required arguments:\n" + "\n".join(_errors))
     logger.error(
-        "Example: sbatch train.slurm --model-family gemma --model-path google/gemma-4-E4B"
+        "Example: sbatch train.slurm --model-family gemma --model-path google/gemma-4-E4B",
     )
     sys.exit(1)
 
