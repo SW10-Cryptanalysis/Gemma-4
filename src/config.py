@@ -6,7 +6,7 @@ import argparse
 from easy_logging import EasyFormatter
 from pathlib import Path
 
-TEXT_LEN = 9961
+TEXT_LEN = 10000
 TOTAL_SEQ = TEXT_LEN * 2
 BUFFER = 5
 UNIQUE_HOMOPHONE_COUNT = 2503
@@ -43,7 +43,7 @@ class Config:
     unique_homophones: int = UNIQUE_HOMOPHONE_COUNT
     unique_letters: int = UNIQUE_LETTER_COUNT
     vocab_size: int = UNIQUE_HOMOPHONE_COUNT + UNIQUE_LETTER_COUNT + BUFFER
-    max_context: int = TOTAL_SEQ + 1
+    max_context: int = TOTAL_SEQ + 100
 
     @property
     def final_output_dir(self) -> Path:
