@@ -8,7 +8,7 @@ from pathlib import Path
 
 TEXT_LEN = 9961
 TOTAL_SEQ = TEXT_LEN * 2
-BUFFER = 178
+BUFFER = 5
 UNIQUE_HOMOPHONE_COUNT = 2503
 UNIQUE_LETTER_COUNT = 26
 
@@ -42,7 +42,7 @@ class Config:
     # ARCHITECTURE
     unique_homophones: int = UNIQUE_HOMOPHONE_COUNT
     unique_letters: int = UNIQUE_LETTER_COUNT
-    vocab_size: int = UNIQUE_HOMOPHONE_COUNT + UNIQUE_LETTER_COUNT + 5
+    vocab_size: int = UNIQUE_HOMOPHONE_COUNT + UNIQUE_LETTER_COUNT + BUFFER
     max_context: int = TOTAL_SEQ + 1
 
     @property
@@ -141,7 +141,7 @@ class Config:
                 logger.warning("Using default value: %d", self.unique_homophones)
                 logger.warning("Error details: %s", str(e))
 
-        raw = self.unique_homophones + self.unique_letters + 5
+        raw = self.unique_homophones + self.unique_letters + BUFFER
         self.vocab_size = (raw + 63) // 64 * 64
 
 
