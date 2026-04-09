@@ -15,7 +15,7 @@ Gemma-4 model for solving long homophonic substitution ciphers
 - `tail -f logs/train_live_<JOB_ID>.log`
 
 ### Cancellation of training
-- `scancel --name=mistral_cipher`
+- `scancel --name=gemma_4_finetune`
 - `scancel -u USERNAME`
 
 ## Usage UCloud

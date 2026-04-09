@@ -15,13 +15,16 @@ handler = logging.StreamHandler()
 handler.setFormatter(EasyFormatter())
 logger = logging.getLogger("train")
 logger.addHandler(handler)
+logger.setLevel(logging.INFO)
 
 
 class PretokenizedCipherDataset(Dataset):
     """Dataset wrapper for loading pre-tokenized cipher samples from disk."""
 
     def __init__(
-        self, directory_path: str | Path, max_samples: int | None = None,
+        self,
+        directory_path: str | Path,
+        max_samples: int | None = None,
     ) -> None:
         """Load a serialized Hugging Face dataset from `directory_path`."""
         self.hf_dataset = load_from_disk(str(directory_path))
@@ -72,11 +75,9 @@ def train() -> None:
     suffix = "Using" if cfg.use_spaces else "Not using"
     logger.info(suffix + " space tokens in training.")
 
-    subset_size = int(os.environ.get("TRAIN_SUBSET_SIZE", 0))
-    max_train_samples = subset_size if subset_size > 0 else None
-
     train_ds = PretokenizedCipherDataset(
-        cfg.tokenized_train_dir, max_samples=max_train_samples,
+        cfg.tokenized_train_dir,
+        max_samples=cfg.max_train_samples,
     )
     val_ds = PretokenizedCipherDataset(cfg.tokenized_val_dir)
 

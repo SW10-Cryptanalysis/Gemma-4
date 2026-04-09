@@ -8,6 +8,7 @@ handler = logging.StreamHandler()
 handler.setFormatter(EasyFormatter())
 logger = logging.getLogger("model")
 logger.addHandler(handler)
+logger.setLevel(logging.INFO)
 
 
 def get_model() -> AutoModelForCausalLM:

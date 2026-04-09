@@ -56,7 +56,7 @@ class Config:
 
     @property
     def sep_token_id(self) -> int:
-        """Seperator Token."""
+        """Separator Token."""
         return self.unique_homophones + 1
 
     @property
@@ -87,6 +87,7 @@ class Config:
     epochs: int = 2
     log_steps: int = 5
     save_steps: int = 500
+    max_train_samples: int = 500000
     use_spaces: bool = not cli_args.without_spaces
     weight_decay: float = 0.01
     warmup_ratio: float = 0.05
@@ -126,7 +127,7 @@ class Config:
 
     def load_homophones(self) -> None:
         """Load homophone mappings from the metadata file."""
-        homophone_path = os.path.join(DATA_DIR, HOMOPHONE_FILE)
+        homophone_path = os.path.join(self.data_dir, HOMOPHONE_FILE)
         if os.path.exists(homophone_path):
             try:
                 with open(homophone_path) as f:
