@@ -18,7 +18,7 @@ def decode_prediction(ids: list[int], force_exact_len: bool = False) -> str:
         if idx == cfg.space_token_id:
             chars.append("_")
         elif idx >= cfg.char_offset:
-            chars.append(chr(idx - cfg.char_offset + ord("a")))
+            chars.append("?")
         elif idx == cfg.eos_token_id:
             if not force_exact_len:
                 break
@@ -100,7 +100,9 @@ def evaluate() -> None:
             dist = sum(
                 c1 != c2
                 for c1, c2 in zip(
-                    true_plain[:min_len], pred_plain[:min_len], strict=True,
+                    true_plain[:min_len],
+                    pred_plain[:min_len],
+                    strict=True,
                 )
             )
 
