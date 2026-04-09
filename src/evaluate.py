@@ -1,6 +1,5 @@
 import torch
 import argparse
-import Levenshtein
 import logging
 from datasets import load_from_disk
 from transformers import AutoModelForCausalLM
@@ -38,15 +37,20 @@ def evaluate() -> None:
     model.config.use_cache = True
     model.eval()
 
-    def decode_prediction(ids: list[int]) -> str:
+    def decode_prediction(ids: list[int], force_exact_len: bool = False) -> str:
         chars = []
         for idx in ids:
             if idx == cfg.space_token_id:
-                chars.append("_" if cfg.use_spaces else " ")
+                chars.append("_")
             elif idx >= cfg.char_offset:
                 chars.append(chr(idx - cfg.char_offset + ord("a")))
             elif idx == cfg.eos_token_id:
-                break
+                if not force_exact_len:
+                    break
+                chars.append("?")
+            else:
+                if force_exact_len:
+                    chars.append("?")
         return "".join(chars)
 
     test_arrow_path = cfg.tokenized_test_dir
@@ -72,26 +76,34 @@ def evaluate() -> None:
             logger.warning(f"Sample {i} missing SEP token. Skipping.")
             continue
 
+        target_len = len(true_plain)
         input_tensor = torch.tensor([input_ids]).to(device)
 
         with torch.no_grad():
             output_ids = model.generate(  # type: ignore
                 input_tensor,
-                max_new_tokens=cfg.max_context // 2,
+                min_new_tokens=target_len,
+                max_new_tokens=target_len,
                 do_sample=False,
                 use_cache=True,
                 pad_token_id=cfg.pad_token_id,
                 bos_token_id=cfg.bos_token_id,
-                eos_token_id=cfg.eos_token_id,
             )
 
         generated_part = output_ids[0][len(input_ids) :]
-        pred_plain = decode_prediction(generated_part.tolist())
+        pred_plain = decode_prediction(generated_part.tolist(), force_exact_len=True)
 
         min_len = min(len(true_plain), len(pred_plain))
         if min_len > 0:
-            dist = Levenshtein.distance(true_plain[:min_len], pred_plain[:min_len])
-            ser = dist / min_len
+            # Hamming distance calculates the number of mismatching characters at identical positions
+            dist = sum(
+                c1 != c2 for c1, c2 in zip(true_plain[:min_len], pred_plain[:min_len])
+            )
+
+            # Add penalty for any length mismatch just in case (though lengths should now be perfectly equal)
+            dist += abs(len(true_plain) - len(pred_plain))
+
+            ser = dist / max(1, len(true_plain))
             total_ser += ser
             evaluated_count += 1
 
