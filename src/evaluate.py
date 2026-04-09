@@ -68,7 +68,7 @@ def evaluate() -> None:
     plaintext_token_ids = list(
         range(cfg.char_offset, cfg.char_offset + cfg.unique_letters),
     )
-
+    plaintext_token_ids.append(cfg.eos_token_id)
     if cfg.use_spaces:
         plaintext_token_ids.append(cfg.space_token_id)
 
