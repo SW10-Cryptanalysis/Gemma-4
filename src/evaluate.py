@@ -55,6 +55,7 @@ def evaluate() -> None:
 
     num_samples = min(50, len(test_ds))
     total_ser = 0.0
+    evaluated_count = 0
 
     logger.info(f"Starting generation on {num_samples} samples...")
 
@@ -92,13 +93,15 @@ def evaluate() -> None:
             dist = Levenshtein.distance(true_plain[:min_len], pred_plain[:min_len])
             ser = dist / min_len
             total_ser += ser
+            evaluated_count += 1
 
             if i % 10 == 0:
                 logger.info(f"Sample {i} | SER: {ser:.4f}")
                 logger.info(f"  True: {true_plain[:60]}")
                 logger.info(f"  Pred: {pred_plain[:60]}")
 
-    avg_ser = total_ser / max(1, num_samples)
+    # Divide by evaluated_count to get the true average
+    avg_ser = total_ser / max(1, evaluated_count)
     logger.info("=" * 30)
     logger.info(f"FINAL AVERAGE SYMBOL ERROR RATE (SER): {avg_ser:.4f}")
 

@@ -18,8 +18,10 @@ export HF_HUB_ENABLE_HF_TRANSFER=1
 
 echo "Job started on $(hostname) at $(date)" | tee logs/train_live_${SLURM_JOB_ID}.log
 
-# Force exactly the allocated GPUs to be visible to avoid NCCL deadlock oversubscription
-export CUDA_VISIBLE_DEVICES=$(echo $CUDA_VISIBLE_DEVICES | awk -F',' '{print $1","$2","$3","$4}')
+if [[ -n "$CUDA_VISIBLE_DEVICES" ]]; then
+    IFS=',' read -ra ADDR <<< "$CUDA_VISIBLE_DEVICES"
+    export CUDA_VISIBLE_DEVICES=$(IFS=','; echo "${ADDR[*]:0:4}")
+fi
 
 nvidia-smi | tee -a logs/train_live_${SLURM_JOB_ID}.log
 
