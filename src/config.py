@@ -125,7 +125,7 @@ class Config:
     # FINE-TUNING TRAINING PARAMS
     batch_size: int = 1
     grad_accum: int = 32
-    gradient_checkpointing: bool = True
+    gradient_checkpointing: bool = False
     learning_rate: float = 1e-5
     epochs: int = 2
     log_steps: int = 5
