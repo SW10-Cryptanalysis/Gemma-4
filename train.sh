@@ -29,6 +29,9 @@ if ! command -v uv &> /dev/null; then
 fi
 
 export OMP_NUM_THREADS=16  # Increased for H100's stronger CPUs to feed the dataloader
+export CUDA_DEVICE_MAX_CONNECTIONS=1
+
+export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
 
 # 4. H100 NVLink & NCCL Optimizations
 export NCCL_DEBUG=INFO
@@ -36,6 +39,8 @@ export TORCH_NCCL_ASYNC_ERROR_HANDLING=1
 if [ "$NUM_GPUS" -gt 1 ]; then
     export NCCL_P2P_DISABLE=0
     export NCCL_IB_DISABLE=0
+    export NCCL_P2P_LEVEL=SYS
+    export NCCL_NET_GDR_LEVEL=SYS
 fi
 
 echo "Creating virtual environment..."
