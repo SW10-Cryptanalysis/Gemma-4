@@ -46,6 +46,7 @@ def get_model() -> AutoModelForCausalLM:
         cfg.model_name_or_path,
         config=model_config,
         torch_dtype=torch.bfloat16,
+        low_cpu_mem_usage=True,
     )
 
     model.resize_token_embeddings(cfg.vocab_size)

@@ -7,7 +7,7 @@ cd /work
 # 2. Clone the repository and specific branch if it doesn't exist yet
 if [ ! -d "fine-tuning-hf-models" ]; then
     echo "Cloning repository..."
-    git clone -b main https://github.com/SW10-Cryptanalysis/fine-tuning-hf-models.git
+    git clone -b UCloud https://github.com/SW10-Cryptanalysis/fine-tuning-hf-models.git
 fi
 
 cd fine-tuning-hf-models
