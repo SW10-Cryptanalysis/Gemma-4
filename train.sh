@@ -1,7 +1,6 @@
 #!/bin/bash
 set -e
 
-# 1. Navigate to your mounted workspace
 cd /work
 
 # 2. Clone the repository and specific branch if it doesn't exist yet
