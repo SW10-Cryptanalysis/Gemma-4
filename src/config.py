@@ -82,7 +82,12 @@ class Config:
     buffer: int = 10
     unique_letters: int = 26
     unique_homophones: int = 0
-    vocab_size: int = 0
+
+    @property
+    def vocab_size(self) -> int:
+        """Dynamically calculate vocab size padded to the nearest multiple of 64."""
+        raw = self.unique_homophones + self.unique_letters + self.buffer
+        return (raw + 63) // 64 * 64
 
     @property
     def max_context(self) -> int:
@@ -136,7 +141,7 @@ class Config:
     max_train_samples: int = 500000
     use_spaces: bool = not cli_args.without_spaces
     weight_decay: float = 0.01
-    warmup_ratio: float = 0.05
+    warmup_steps: int = 1500
     fp16: bool = False
     bf16: bool = True
     tf32: bool = True
@@ -182,17 +187,12 @@ class Config:
                 f"Invalid or missing 'max_symbol_id' in {homophone_path}",
             ) from e
 
-        raw = self.unique_homophones + self.unique_letters + self.buffer
-        self.vocab_size = (
-            (raw + 63) // 64 * 64
-        )  # Padded to nearest multiple of 64 for L4 Ada Lovelace Tensor Cores
         logger.info(
             f"Config initialized: unique_homophones={self.unique_homophones}, sep_token_id={self.sep_token_id}, space_token_id={self.space_token_id}, bos_token_id={self.bos_token_id}, eos_token_id={self.eos_token_id}, char_offset={self.char_offset}, vocab_size={self.vocab_size}",
         )
         logger.info(
-            f"Max len set to {self.max_context} based on use_spaces={self.use_spaces}"
+            f"Max len set to {self.max_context} based on use_spaces={self.use_spaces}",
         )
 
 
 cfg = Config()
-cfg.load_homophones()

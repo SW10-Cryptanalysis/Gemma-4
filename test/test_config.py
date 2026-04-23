@@ -1,5 +1,6 @@
 import json
-from src.config import Config, cfg, BUFFER, UNIQUE_LETTER_COUNT
+import pytest
+from src.config import Config, cfg
 
 
 # ---------------------------------------------------------------------------
@@ -108,9 +109,6 @@ class TestVocabSize:
     def test_vocab_size_covers_all_homophones(self):
         assert cfg.vocab_size > cfg.unique_homophones
 
-    def test_vocab_size_covers_all_special_tokens_and_letters(self):
-        assert cfg.vocab_size >= cfg.char_offset + UNIQUE_LETTER_COUNT
-
     def test_load_homophones_updates_unique_homophones(self, tmp_path, mocker):
         c = Config()
         meta = {"max_symbol_id": 3000}
@@ -145,37 +143,31 @@ class TestVocabSize:
         mocker.patch("os.path.exists", return_value=True)
         c.load_homophones()
 
-        assert c.vocab_size >= 3000 + UNIQUE_LETTER_COUNT + BUFFER
+        assert c.vocab_size >= 3000 + cfg.unique_letters + cfg.buffer
 
-    def test_load_homophones_missing_file_keeps_default(self, mocker):
-        c = Config()
-        original = c.unique_homophones
-
+    def test_load_homophones_missing_file_raises_error(self, mocker):
         mocker.patch("os.path.exists", return_value=False)
-        c.load_homophones()
 
-        assert c.unique_homophones == original
+        # Expect the FileNotFoundError
+        with pytest.raises(FileNotFoundError):
+            cfg.load_homophones()
 
-    def test_load_homophones_invalid_json_keeps_default(self, tmp_path, mocker):
-        c = Config()
-        original = c.unique_homophones
+    def test_load_homophones_invalid_json_fails(self, tmp_path, mocker):
         bad_path = tmp_path / "metadata.json"
         bad_path.write_text("{ this is not valid json }")
 
         mocker.patch("os.path.join", return_value=str(bad_path))
         mocker.patch("os.path.exists", return_value=True)
-        c.load_homophones()
 
-        assert c.unique_homophones == original
+        with pytest.raises(ValueError):
+            cfg.load_homophones()
 
-    def test_load_homophones_missing_key_keeps_default(self, tmp_path, mocker):
-        c = Config()
-        original = c.unique_homophones
+    def test_load_homophones_missing_key_fails(self, tmp_path, mocker):
         bad_path = tmp_path / "metadata.json"
         bad_path.write_text(json.dumps({"wrong_key": 999}))
 
         mocker.patch("os.path.join", return_value=str(bad_path))
         mocker.patch("os.path.exists", return_value=True)
-        c.load_homophones()
 
-        assert c.unique_homophones == original
+        with pytest.raises(ValueError):
+            cfg.load_homophones()

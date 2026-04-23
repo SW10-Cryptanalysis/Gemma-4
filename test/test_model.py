@@ -23,6 +23,9 @@ def mock_dependencies(mocker):
     # Mock Model
     mock_model = mocker.Mock()
     mock_model.config = mock_config
+    del (
+        mock_model.model.language_model
+    )  # Ensure _get_text_model returns mock_model.model
     mock_model.num_parameters.return_value = 3_000_000_000
     mock_model.get_memory_footprint.return_value = 6_000_000_000
 
@@ -76,6 +79,7 @@ class TestGetModel:
             cfg.model_name_or_path,
             config=mock_config,
             torch_dtype=torch.bfloat16,
+            low_cpu_mem_usage=True,
         )
 
     def test_resizes_token_embeddings(self, mock_dependencies):
