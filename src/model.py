@@ -18,7 +18,7 @@ def _get_text_model(model: AutoModelForCausalLM) -> torch.nn.Module:
     model.model.language_model, whereas text-only models (Llama, Mistral,
     Gemma 1/2/3) expose embed_tokens directly on model.model.
     """
-    inner = model.model  # type: ignore
+    inner = model.backbone  # type: ignore
     if hasattr(inner, "language_model"):
         return inner.language_model
     return inner
@@ -30,11 +30,6 @@ def get_model() -> AutoModelForCausalLM:
 
     model_config = AutoConfig.from_pretrained(
         cfg.model_name_or_path,
-        attn_implementation=(
-            "flash_attention_2"
-            if cfg.model_family in cfg.FLASH_ATTN_COMPATIBLE
-            else "eager"
-        ),
         use_cache=False,
     )
 
