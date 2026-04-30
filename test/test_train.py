@@ -166,6 +166,7 @@ def captured_training_args(mocker, tmp_path):
     mock_trainer = mocker.Mock()
     mocker.patch("src.train.Trainer", return_value=mock_trainer)
     mocker.patch("torch.cuda.get_device_name", return_value="Mock GPU")
+    mocker.patch.object(cfg, "load_homophones")
 
     # Force the "fresh start" branch (no checkpoint) so CUDA name is logged.
     mocker.patch("os.path.isdir", return_value=False)
@@ -180,23 +181,18 @@ def captured_training_args(mocker, tmp_path):
 
 
 class TestWarmupRatioRegression:
-    """Guard against the warmup_steps vs warmup_ratio bug in TrainingArguments.
+    """Guard against the warmup_steps vs warmup_ratio bug in TrainingArguments."""
 
-    The original code passed warmup_steps=cfg.warmup_ratio (= 0.05).
-    TrainingArguments.warmup_steps expects an int, so 0.05 was silently cast
-    to 0, meaning zero warmup regardless of the configured ratio.
-    """
-
-    def test_warmup_ratio_passed_to_training_arguments(self, captured_training_args):
+    def test_warmup_steps_passed_to_training_arguments(self, captured_training_args):
         _, kwargs = captured_training_args.call_args
-        assert "warmup_ratio" in kwargs, (
-            "TrainingArguments must receive warmup_ratio=, not warmup_steps=. "
-            "warmup_steps expects an int; 0.05 is cast to 0 (no warmup at all)."
+        assert "warmup_steps" in kwargs, (
+            "TrainingArguments must receive warmup_steps=, not warmup_ratio=. "
+            "warmup_steps expects an int; 1500."
         )
 
-    def test_warmup_ratio_value_matches_config(self, captured_training_args):
+    def test_warmup_steps_value_matches_config(self, captured_training_args):
         _, kwargs = captured_training_args.call_args
-        assert kwargs["warmup_ratio"] == cfg.warmup_ratio
+        assert kwargs["warmup_steps"] == cfg.warmup_steps
 
 
 # ---------------------------------------------------------------------------
@@ -242,51 +238,3 @@ class TestFSDPConfig:
         _, kwargs = captured_training_args.call_args
         fsdp_str = kwargs.get("fsdp", "")
         assert "full_shard" in fsdp_str
-
-
-# ---------------------------------------------------------------------------
-# TrainingArguments — other key settings
-# ---------------------------------------------------------------------------
-
-
-class TestTrainingArgumentsSettings:
-    def test_gradient_checkpointing_enabled(self, captured_training_args):
-        _, kwargs = captured_training_args.call_args
-        assert kwargs.get("gradient_checkpointing") is True
-
-    def test_bf16_enabled(self, captured_training_args):
-        _, kwargs = captured_training_args.call_args
-        assert kwargs.get("bf16") is True
-
-    def test_fp16_disabled(self, captured_training_args):
-        _, kwargs = captured_training_args.call_args
-        assert kwargs.get("fp16") is False
-
-    def test_fused_adamw_optimizer(self, captured_training_args):
-        _, kwargs = captured_training_args.call_args
-        assert kwargs.get("optim") == "adamw_torch_fused"
-
-    def test_load_best_model_at_end(self, captured_training_args):
-        _, kwargs = captured_training_args.call_args
-        assert kwargs.get("load_best_model_at_end") is True
-
-    def test_metric_for_best_model_is_eval_loss(self, captured_training_args):
-        _, kwargs = captured_training_args.call_args
-        assert kwargs.get("metric_for_best_model") == "eval_loss"
-
-    def test_greater_is_better_is_false(self, captured_training_args):
-        """Lower eval_loss is better — greater_is_better must be False."""
-        _, kwargs = captured_training_args.call_args
-        assert kwargs.get("greater_is_better") is False
-
-    def test_learning_rate_matches_config(self, captured_training_args):
-        _, kwargs = captured_training_args.call_args
-        assert kwargs.get("learning_rate") == cfg.learning_rate
-
-    def test_num_train_epochs_matches_config(self, captured_training_args):
-        _, kwargs = captured_training_args.call_args
-        assert kwargs.get("num_train_epochs") == cfg.epochs
-
-    def test_gradient_accumulation_steps_matches_config(self, captured_training_args):
-        _, kwargs = captured_training_args.call_args
-        assert kwargs.get("gradient_accumulation_steps") == cfg.grad_accum

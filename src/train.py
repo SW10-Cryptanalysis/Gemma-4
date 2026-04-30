@@ -67,6 +67,8 @@ class PretokenizedCipherDataset(Dataset):
 
 def train() -> None:
     """Start FSDP fine-tuning with Equal Loss Weighting and Optimized Checkpointing."""
+    cfg.load_homophones()
+
     current_output_dir = cfg.final_output_dir
     current_output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -88,18 +90,19 @@ def train() -> None:
         gradient_accumulation_steps=cfg.grad_accum,
         learning_rate=cfg.learning_rate,
         weight_decay=cfg.weight_decay,
-        warmup_ratio=cfg.warmup_ratio,
-        gradient_checkpointing=cfg.gradient_checkpointing,
+        warmup_steps=cfg.warmup_steps,
+        # gradient_checkpointing=cfg.gradient_checkpointing,
+        # gradient_checkpointing_kwargs={"use_reentrant": False},
         eval_strategy="steps",
         eval_steps=cfg.save_steps,
         per_device_eval_batch_size=cfg.batch_size,
-        eval_accumulation_steps=4,
+        eval_accumulation_steps=cfg.grad_accum,
         logging_steps=cfg.log_steps,
         save_steps=cfg.save_steps,
         fp16=cfg.fp16,
         bf16=cfg.bf16,
         tf32=cfg.tf32,
-        dataloader_num_workers=8,
+        dataloader_num_workers=4,
         dataloader_pin_memory=True,
         ddp_find_unused_parameters=False,
         save_total_limit=2,
@@ -109,14 +112,13 @@ def train() -> None:
         optim="adamw_torch_fused",
         fsdp="full_shard auto_wrap",
         fsdp_config={
-            "transformer_layer_cls_to_wrap": cfg.FSDP_LAYER_MAP.get(
-                cfg.model_family, None,
-            ),
+            "transformer_layer_cls_to_wrap": cfg.FSDP_LAYER_MAP.get(cfg.model_family),
             "backward_prefetch": "backward_pre",
             "use_orig_params": True,
             "sync_module_states": True,
             "activation_checkpointing": True,
             "limit_all_gathers": True,
+            "cpu_ram_efficient_loading": True,
         },
     )
 

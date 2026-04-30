@@ -7,13 +7,10 @@ import argparse
 from easy_logging import EasyFormatter
 from pathlib import Path
 
-TEXT_LEN = 10000
-TOTAL_SEQ = TEXT_LEN * 2
-BUFFER = 5
-UNIQUE_HOMOPHONE_COUNT = 2503
-UNIQUE_LETTER_COUNT = 26
+MAX_PLAIN_SPACES = 13077
+MAX_PLAIN_NORMAL = 10063
 
-DATA_DIR = Path(__file__).parent.parent.parent / "Ciphers"
+DATA_DIR = Path(__file__).parent.parent.parent / "Ciphers-AAU"
 OUTPUT_DIR = Path(__file__).parent.parent / "outputs"
 HOMOPHONE_FILE = "metadata.json"
 
@@ -82,11 +79,22 @@ class Config:
     model_name_or_path: str = cli_args.model_path
     model_family: str = cli_args.model_family
 
-    # ARCHITECTURE
-    unique_homophones: int = UNIQUE_HOMOPHONE_COUNT
-    unique_letters: int = UNIQUE_LETTER_COUNT
-    vocab_size: int = UNIQUE_HOMOPHONE_COUNT + UNIQUE_LETTER_COUNT + BUFFER
-    max_context: int = TOTAL_SEQ + 100
+    buffer: int = 10
+    unique_letters: int = 26
+    unique_homophones: int = 0
+
+    @property
+    def vocab_size(self) -> int:
+        """Dynamically calculate vocab size padded to the nearest multiple of 64."""
+        raw = self.unique_homophones + self.unique_letters + self.buffer
+        return (raw + 63) // 64 * 64
+
+    @property
+    def max_context(self) -> int:
+        """Calculate dynamic variables after the dataclass is initialized."""
+        if self.use_spaces:
+            return (MAX_PLAIN_SPACES * 2) + self.buffer
+        return (MAX_PLAIN_NORMAL * 2) + self.buffer
 
     @property
     def final_output_dir(self) -> Path:
@@ -124,7 +132,7 @@ class Config:
 
     # FINE-TUNING TRAINING PARAMS
     batch_size: int = 1
-    grad_accum: int = 32
+    grad_accum: int = 16
     gradient_checkpointing: bool = True
     learning_rate: float = 1e-5
     epochs: int = 2
@@ -133,7 +141,7 @@ class Config:
     max_train_samples: int = 500000
     use_spaces: bool = not cli_args.without_spaces
     weight_decay: float = 0.01
-    warmup_ratio: float = 0.05
+    warmup_steps: int = 1500
     fp16: bool = False
     bf16: bool = True
     tf32: bool = True
@@ -161,24 +169,30 @@ class Config:
 
     def load_homophones(self) -> None:
         """Load homophone mappings from the metadata file."""
-        homophone_path = os.path.join(self.data_dir, HOMOPHONE_FILE)
-        if os.path.exists(homophone_path):
-            try:
-                with open(homophone_path) as f:
-                    meta = json.load(f)
-                    self.unique_homophones = int(meta["max_symbol_id"])
-            except OSError as e:
-                logger.warning("Could not read file: %s", HOMOPHONE_FILE)
-                logger.warning("Using default value: %d", self.unique_homophones)
-                logger.warning("Error details: %s", str(e))
-            except (ValueError, KeyError) as e:
-                logger.warning("Invalid or missing data in: %s", HOMOPHONE_FILE)
-                logger.warning("Using default value: %d", self.unique_homophones)
-                logger.warning("Error details: %s", str(e))
+        homophone_path = os.path.join(DATA_DIR, HOMOPHONE_FILE)
+        if not os.path.exists(homophone_path):
+            raise FileNotFoundError(
+                f"Metadata file not found at: {homophone_path}. "
+                "Cannot determine unique_homophones — aborting.",
+                1,
+            )
+        try:
+            with open(homophone_path) as f:
+                meta = json.load(f)
+                self.unique_homophones = int(meta["max_symbol_id"])
+        except OSError as e:
+            raise OSError(f"Could not read file: {homophone_path}") from e
+        except (ValueError, KeyError) as e:
+            raise ValueError(
+                f"Invalid or missing 'max_symbol_id' in {homophone_path}",
+            ) from e
 
-        raw = self.unique_homophones + self.unique_letters + BUFFER
-        self.vocab_size = (raw + 63) // 64 * 64
+        logger.info(
+            f"Config initialized: unique_homophones={self.unique_homophones}, sep_token_id={self.sep_token_id}, space_token_id={self.space_token_id}, bos_token_id={self.bos_token_id}, eos_token_id={self.eos_token_id}, char_offset={self.char_offset}, vocab_size={self.vocab_size}",
+        )
+        logger.info(
+            f"Max len set to {self.max_context} based on use_spaces={self.use_spaces}",
+        )
 
 
 cfg = Config()
-cfg.load_homophones()
