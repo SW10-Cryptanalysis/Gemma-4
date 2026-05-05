@@ -10,7 +10,7 @@ from pathlib import Path
 MAX_PLAIN_SPACES = 13077
 MAX_PLAIN_NORMAL = 10063
 
-DATA_DIR = Path(__file__).parent.parent.parent / "Ciphers-AAU"
+DATA_DIR = Path(__file__).parent.parent.parent / "Ciphers"
 OUTPUT_DIR = Path(__file__).parent.parent / "outputs"
 HOMOPHONE_FILE = "metadata.json"
 
