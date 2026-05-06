@@ -34,9 +34,10 @@ sbatch train.slurm --model-family mistral --model-path mistralai/Mistral-7B-v0.3
 | Flag | Description |
 |---|---|
 | `--without-spaces` | Train without space tokens in the dataset |
+| `--dataset-suffix` | Suffix to append to folder name "tokenized_normal" |
 
 ```bash
-sbatch train.slurm --model-family llama --model-path meta-llama/Llama-3.2-3B --without-spaces
+sbatch train.slurm --model-family llama --model-path meta-llama/Llama-3.2-3B --without-spaces --dataset-suffix _truncated_4000
 ```
 
 ### Monitoring during training
