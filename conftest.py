@@ -16,6 +16,12 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default=None,
         help="HuggingFace model ID or local path to the pre-trained model",
     )
+    parser.addoption(
+        "--dataset-path",
+        action="store",
+        default=None,
+        help="Path to the dataset (e.g., 'tokenized_spaced', 'tokenized_normal_truncated_4000')",
+    )
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -28,6 +34,7 @@ def pytest_configure(config: pytest.Config) -> None:
     for flag, dest in [
         ("--model-family", "model_family"),
         ("--model-path", "model_path"),
+        ("--dataset-path", "dataset_path"),
     ]:
         try:
             value = config.getoption(dest)

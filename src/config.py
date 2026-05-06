@@ -60,7 +60,7 @@ if cli_args.model_path is None:
     _errors.append(
         "  --model-path is required. Provide a HuggingFace model ID or local path.",
     )
-if cli_args.dataset_path == None:
+if cli_args.dataset_path is None:
     _errors.append(
         "  --dataset-path is required. Specify the dataset subdirectory (e.g., 'tokenized_normal', 'tokenized_spaced_truncated_4000').",
     )
