@@ -131,8 +131,8 @@ class Config:
         return self.eos_token_id + 1
 
     # FINE-TUNING TRAINING PARAMS
-    batch_size: int = 1
-    grad_accum: int = 16
+    batch_size: int = 16
+    grad_accum: int = 1
     gradient_checkpointing: bool = True
     learning_rate: float = 1e-5
     epochs: int = 2
