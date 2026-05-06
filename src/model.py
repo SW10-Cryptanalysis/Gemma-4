@@ -51,7 +51,7 @@ def get_model() -> AutoModelForCausalLM:
     init_std = model.config.initializer_range  # typically 0.02 for Gemma-4
     text_model = _get_text_model(model)
 
-    text_model.embed_tokens.weight.data.normal_(mean=0.0, std=init_std)
+    text_model.embeddings.weight.data.normal_(mean=0.0, std=init_std)
 
     # Gemma 4 uses Per-Layer Embeddings (PLE): an additional embed_tokens_per_layer
     # weight that also encodes token identity and must be reinitialized.
@@ -59,7 +59,7 @@ def get_model() -> AutoModelForCausalLM:
         text_model.embed_tokens_per_layer.weight.data.normal_(mean=0.0, std=init_std)
         logger.info("Reinitialized Per-Layer Embeddings (embed_tokens_per_layer).")
 
-    if model.lm_head.weight.data_ptr() != text_model.embed_tokens.weight.data_ptr():
+    if model.lm_head.weight.data_ptr() != text_model.embeddings.weight.data_ptr():
         model.lm_head.weight.data.normal_(mean=0.0, std=init_std)
 
     logger.info(f"Pre-trained {cfg.model_name_or_path} Model loaded successfully!")
