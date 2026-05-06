@@ -19,7 +19,7 @@ handler.setFormatter(EasyFormatter())
 logger = logging.getLogger("config")
 logger.addHandler(handler)
 
-VALID_FAMILIES = ["gemma", "llama", "mistral", "jamba", "mamba"]
+VALID_FAMILIES = ["gemma", "llama", "mistral", "jamba", "mamba", "mamba2"]
 
 parser = argparse.ArgumentParser(add_help=False)
 parser.add_argument(
@@ -71,6 +71,7 @@ class Config:
         "mistral": "MistralDecoderLayer",
         "jamba": "JambaDecoderLayer",
         "mamba": None,  # Mamba is not transformer-based; FSDP wrapping differs
+        "mamba2": None,
     }
 
     FLASH_ATTN_COMPATIBLE = {"gemma", "llama", "mistral", "jamba"}
