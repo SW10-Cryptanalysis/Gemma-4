@@ -10,7 +10,7 @@ from pathlib import Path
 MAX_PLAIN_SPACES = 13077
 MAX_PLAIN_NORMAL = 10063
 
-DATA_DIR = Path(__file__).parent.parent.parent / "Ciphers-AAU"
+DATA_DIR = Path(__file__).parent.parent.parent / "Ciphers"
 OUTPUT_DIR = Path(__file__).parent.parent / "outputs"
 HOMOPHONE_FILE = "metadata.json"
 
@@ -153,19 +153,13 @@ class Config:
     def tokenized_train_dir(self) -> Path:
         """Path for tokenized training data."""
         suffix = "spaced" if self.use_spaces else "normal"
-        return self.data_dir / f"tokenized_{suffix}" / "Training"
+        return self.data_dir / f"tokenized_{suffix}_truncated_4000" / "Training"
 
     @property
     def tokenized_val_dir(self) -> Path:
         """Path for tokenized validation data."""
         suffix = "spaced" if self.use_spaces else "normal"
-        return self.data_dir / f"tokenized_{suffix}" / "Validation"
-
-    @property
-    def tokenized_test_dir(self) -> Path:
-        """Path for tokenized test data."""
-        suffix = "spaced" if self.use_spaces else "normal"
-        return self.data_dir / f"tokenized_{suffix}" / "Test"
+        return self.data_dir / f"tokenized_{suffix}_truncated_4000" / "Validation"
 
     def load_homophones(self) -> None:
         """Load homophone mappings from the metadata file."""
@@ -193,6 +187,8 @@ class Config:
         logger.info(
             f"Max len set to {self.max_context} based on use_spaces={self.use_spaces}",
         )
+        logger.info(f"Training dir set to: {self.tokenized_train_dir}")
+        logger.info(f"Validation dir set to: {self.tokenized_val_dir}")
 
 
 cfg = Config()

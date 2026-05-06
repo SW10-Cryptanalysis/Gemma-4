@@ -110,16 +110,16 @@ def train() -> None:
         metric_for_best_model="eval_loss",
         greater_is_better=False,
         optim="adamw_torch_fused",
-        fsdp="full_shard auto_wrap",
-        fsdp_config={
-            "transformer_layer_cls_to_wrap": cfg.FSDP_LAYER_MAP.get(cfg.model_family),
-            "backward_prefetch": "backward_pre",
-            "use_orig_params": True,
-            "sync_module_states": True,
-            "activation_checkpointing": True,
-            "limit_all_gathers": True,
-            "cpu_ram_efficient_loading": True,
-        },
+        # fsdp="full_shard auto_wrap",
+        # fsdp_config={
+        #     "transformer_layer_cls_to_wrap": cfg.FSDP_LAYER_MAP.get(cfg.model_family),
+        #     "backward_prefetch": "backward_pre",
+        #     "use_orig_params": True,
+        #     "sync_module_states": True,
+        #     "activation_checkpointing": True,
+        #     "limit_all_gathers": True,
+        #     "cpu_ram_efficient_loading": True,
+        # },
     )
 
     trainer = Trainer(
