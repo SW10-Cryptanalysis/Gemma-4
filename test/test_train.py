@@ -1,9 +1,9 @@
 import pytest
 import torch
+import numpy as np
 
 from src.train import PretokenizedCipherDataset, train
 from src.config import Config, cfg
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -238,3 +238,126 @@ class TestFSDPConfig:
         _, kwargs = captured_training_args.call_args
         fsdp_str = kwargs.get("fsdp", "")
         assert "full_shard" in fsdp_str
+
+
+# ---------------------------------------------------------------------------
+# Dynamic Padding Collator
+# ---------------------------------------------------------------------------
+
+
+class TestDynamicPaddingCollator:
+    def test_collator_pads_to_max_in_batch(self, mocker):
+        from src.train import dynamic_padding_collator
+        from src.config import Config
+
+        mocker.patch.object(
+            Config, "pad_token_id", new_callable=mocker.PropertyMock, return_value=0
+        )
+
+        features = [
+            {
+                "input_ids": torch.tensor([1, 2, 3]),
+                "labels": torch.tensor([10, 11, 12]),
+            },
+            {"input_ids": torch.tensor([1, 2]), "labels": torch.tensor([10, 11])},
+        ]
+
+        collated = dynamic_padding_collator(features)
+
+        assert collated["input_ids"].shape == (2, 3)
+        assert collated["labels"][1, 2].item() == -100
+        assert collated["attention_mask"][1, 2].item() == 0
+
+
+# ---------------------------------------------------------------------------
+# Compute Metrics
+# ---------------------------------------------------------------------------
+
+
+class TestComputeMetrics:
+    def test_compute_metrics_only_evaluates_after_sep(self, mocker):
+        from src.train import compute_metrics
+
+        mocker.patch.object(
+            Config, "sep_token_id", new_callable=mocker.PropertyMock, return_value=5
+        )
+        mocker.patch.object(
+            Config, "eos_token_id", new_callable=mocker.PropertyMock, return_value=9
+        )
+
+        labels = np.array([[1, 5, 10, 20, 9]])
+        preds = np.array([[1, 10, 99, 0, 0]])  # Offset by 1 for the shift
+
+        metrics = compute_metrics((preds, labels))
+        assert metrics["ser"] == 0.5
+
+    def test_compute_metrics_with_padding_ignored(self, mocker):
+        from src.train import compute_metrics
+
+        mocker.patch.object(
+            Config, "sep_token_id", new_callable=mocker.PropertyMock, return_value=5
+        )
+        mocker.patch.object(
+            Config, "eos_token_id", new_callable=mocker.PropertyMock, return_value=9
+        )
+
+        labels = np.array([[1, 5, 10, -100]])
+        preds = np.array([[0, 10, 0, 0]])
+
+        metrics = compute_metrics((preds, labels))
+        assert metrics["ser"] == 0.0
+
+    def test_compute_metrics_no_valid_symbols(self, mocker):
+        from src.train import compute_metrics
+
+        mocker.patch.object(
+            Config, "sep_token_id", new_callable=mocker.PropertyMock, return_value=5
+        )
+
+        labels = np.array([[1, 2, 3]])
+        preds = np.array([[1, 2, 3]])
+
+        metrics = compute_metrics((preds, labels))
+        assert metrics["ser"] == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Preprocess Logits For Metrics
+# ---------------------------------------------------------------------------
+
+
+class TestPreprocessLogitsForMetrics:
+    def test_preprocess_logits_standard_tensor(self):
+        from src.train import preprocess_logits_for_metrics
+
+        logits = torch.tensor(
+            [
+                [[0.1, 0.9, 0.0, 0.0], [0.0, 0.1, 0.8, 0.1], [1.0, 0.0, 0.0, 0.0]],
+                [[0.0, 0.0, 0.0, 1.0], [0.4, 0.6, 0.0, 0.0], [0.2, 0.2, 0.5, 0.1]],
+            ]
+        )
+        labels = torch.zeros((2, 3), dtype=torch.long)
+
+        processed = preprocess_logits_for_metrics(logits, labels)
+
+        expected = torch.tensor([[1, 2, 0], [3, 1, 2]])
+
+        assert processed.shape == (2, 3)
+        assert torch.equal(processed, expected)
+
+    def test_preprocess_logits_tuple_input(self):
+        from src.train import preprocess_logits_for_metrics
+
+        main_logits = torch.tensor([[[0.1, 0.8, 0.1], [0.9, 0.0, 0.1]]])
+
+        mock_past_keys = torch.tensor([1, 2, 3])
+        logits_tuple = (main_logits, mock_past_keys)
+
+        labels = torch.zeros((1, 2), dtype=torch.long)
+
+        processed = preprocess_logits_for_metrics(logits_tuple, labels)  # type: ignore
+
+        expected = torch.tensor([[1, 0]])
+
+        assert processed.shape == (1, 2)
+        assert torch.equal(processed, expected)

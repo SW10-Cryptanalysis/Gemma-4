@@ -10,14 +10,15 @@ from pathlib import Path
 MAX_PLAIN_SPACES = 13077
 MAX_PLAIN_NORMAL = 10063
 
-DATA_DIR = Path(__file__).parent.parent.parent / "Ciphers-AAU"
-OUTPUT_DIR = Path(__file__).parent.parent / "outputs"
+DATA_DIR = Path(__file__).resolve().parent.parent.parent / "Ciphers"
+OUTPUT_DIR = Path(__file__).resolve().parent.parent / "outputs"
 HOMOPHONE_FILE = "metadata.json"
 
 handler = logging.StreamHandler()
 handler.setFormatter(EasyFormatter())
 logger = logging.getLogger("config")
 logger.addHandler(handler)
+logger.setLevel(logging.INFO)
 
 VALID_FAMILIES = ["gemma", "llama", "mistral", "jamba", "mamba"]
 
@@ -41,18 +42,29 @@ parser.add_argument(
     default=None,
     help="HuggingFace model identifier or local path to the pre-trained model. Required.",
 )
+parser.add_argument(
+    "--dataset-path",
+    type=str,
+    default=None,
+    help="Path to the dataset (e.g., 'tokenized_spaced', 'tokenized_normal_truncated_4000').",
+)
 cli_args, _ = parser.parse_known_args()
 
 # Fail early and clearly if required flags are missing
 _errors = []
 if cli_args.model_family is None:
     _errors.append(
-        "  --model-family is required. Choose from: " + ", ".join(VALID_FAMILIES),
+        f"  --model-family is required. Choose from: {', '.join(VALID_FAMILIES)}",
     )
 if cli_args.model_path is None:
     _errors.append(
         "  --model-path is required. Provide a HuggingFace model ID or local path.",
     )
+if cli_args.dataset_path is None:
+    _errors.append(
+        "  --dataset-path is required. Specify the dataset subdirectory (e.g., 'tokenized_normal', 'tokenized_spaced_truncated_4000').",
+    )
+
 if _errors:
     logger.error("Missing required arguments:\n" + "\n".join(_errors))
     logger.error(
@@ -78,6 +90,7 @@ class Config:
     # HF Model Identifier and family — set from CLI flags
     model_name_or_path: str = cli_args.model_path
     model_family: str = cli_args.model_family
+    dataset_path: str = cli_args.dataset_path
 
     buffer: int = 10
     unique_letters: int = 26
@@ -98,7 +111,7 @@ class Config:
 
     @property
     def final_output_dir(self) -> Path:
-        """Return the output directory path for saving fine-tuned models, differentiated by space token usage."""
+        """Return the output directory path for saving fine-tuned models."""
         suffix = "spaces" if self.use_spaces else "normal"
         return self.output_dir / self.model_family / suffix
 
@@ -131,13 +144,14 @@ class Config:
         return self.eos_token_id + 1
 
     # FINE-TUNING TRAINING PARAMS
-    batch_size: int = 1
-    grad_accum: int = 16
+    batch_size: int = 16
+    grad_accum: int = 1
     gradient_checkpointing: bool = True
     learning_rate: float = 1e-5
-    epochs: int = 2
-    log_steps: int = 5
-    save_steps: int = 500
+    epochs: int = 5
+    log_steps: int = 100
+    eval_steps: int = 5000
+    save_steps: int = 10000
     max_train_samples: int = 500000
     use_spaces: bool = not cli_args.without_spaces
     weight_decay: float = 0.01
@@ -152,32 +166,23 @@ class Config:
     @property
     def tokenized_train_dir(self) -> Path:
         """Path for tokenized training data."""
-        suffix = "spaced" if self.use_spaces else "normal"
-        return self.data_dir / f"tokenized_{suffix}" / "Training"
+        return self.data_dir / self.dataset_path / "Training"
 
     @property
     def tokenized_val_dir(self) -> Path:
         """Path for tokenized validation data."""
-        suffix = "spaced" if self.use_spaces else "normal"
-        return self.data_dir / f"tokenized_{suffix}" / "Validation"
-
-    @property
-    def tokenized_test_dir(self) -> Path:
-        """Path for tokenized test data."""
-        suffix = "spaced" if self.use_spaces else "normal"
-        return self.data_dir / f"tokenized_{suffix}" / "Test"
+        return self.data_dir / self.dataset_path / "Validation"
 
     def load_homophones(self) -> None:
         """Load homophone mappings from the metadata file."""
-        homophone_path = os.path.join(DATA_DIR, HOMOPHONE_FILE)
-        if not os.path.exists(homophone_path):
+        homophone_path = self.data_dir / HOMOPHONE_FILE
+        if not homophone_path.exists():
             raise FileNotFoundError(
                 f"Metadata file not found at: {homophone_path}. "
                 "Cannot determine unique_homophones — aborting.",
-                1,
             )
         try:
-            with open(homophone_path) as f:
+            with open(homophone_path, encoding="utf-8") as f:
                 meta = json.load(f)
                 self.unique_homophones = int(meta["max_symbol_id"])
         except OSError as e:
@@ -186,13 +191,18 @@ class Config:
             raise ValueError(
                 f"Invalid or missing 'max_symbol_id' in {homophone_path}",
             ) from e
-
-        logger.info(
-            f"Config initialized: unique_homophones={self.unique_homophones}, sep_token_id={self.sep_token_id}, space_token_id={self.space_token_id}, bos_token_id={self.bos_token_id}, eos_token_id={self.eos_token_id}, char_offset={self.char_offset}, vocab_size={self.vocab_size}",
-        )
-        logger.info(
-            f"Max len set to {self.max_context} based on use_spaces={self.use_spaces}",
-        )
+        if int(os.environ.get("LOCAL_RANK", "0")) == 0:
+            logger.info(
+                f"Config initialized: unique_homophones={self.unique_homophones}, "
+                f"sep_token_id={self.sep_token_id}, space_token_id={self.space_token_id}, "
+                f"bos_token_id={self.bos_token_id}, eos_token_id={self.eos_token_id}, "
+                f"char_offset={self.char_offset}, vocab_size={self.vocab_size}",
+            )
+            logger.info(
+                f"Max len set to {self.max_context} (use_spaces={self.use_spaces})",
+            )
+            logger.info(f"Training dir set to: {self.tokenized_train_dir}")
+            logger.info(f"Validation dir set to: {self.tokenized_val_dir}")
 
 
 cfg = Config()

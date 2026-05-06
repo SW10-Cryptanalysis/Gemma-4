@@ -21,13 +21,13 @@ sbatch train.slurm --model-family <family> --model-path <hf-id-or-local-path>
 **Examples:**
 ```bash
 # Gemma 4
-sbatch train.slurm --model-family gemma --model-path google/gemma-4-E4B
+sbatch train.slurm --model-family gemma --model-path google/gemma-4-E4B --dataset-path tokenized_normal
 
 # LLaMA 3.1
-sbatch train.slurm --model-family llama --model-path meta-llama/Llama-3.2-3B
+sbatch train.slurm --model-family llama --model-path meta-llama/Llama-3.2-3B --dataset-path tokenized_normal_truncated_4000
 
 # Mistral
-sbatch train.slurm --model-family mistral --model-path mistralai/Mistral-7B-v0.3
+sbatch train.slurm --model-family mistral --model-path mistralai/Mistral-7B-v0.3 --dataset-path tokenized_spaced
 ```
 
 #### Optional flags

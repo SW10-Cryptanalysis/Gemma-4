@@ -1,6 +1,7 @@
 import torch
-from transformers import AutoModelForCausalLM, AutoConfig
+import os
 import logging
+from transformers import AutoModelForCausalLM, AutoConfig
 from easy_logging import EasyFormatter
 from src.config import cfg
 
@@ -26,7 +27,8 @@ def _get_text_model(model: AutoModelForCausalLM) -> torch.nn.Module:
 
 def get_model() -> AutoModelForCausalLM:
     """Load pre-trained model and adapt it for sequence-bottleneck conditions."""
-    logger.info(f"Loading pre-trained model: {cfg.model_name_or_path}")
+    if int(os.environ.get("LOCAL_RANK", "0")) == 0:
+        logger.info(f"Loading pre-trained model: {cfg.model_name_or_path}")
 
     model_config = AutoConfig.from_pretrained(
         cfg.model_name_or_path,
@@ -62,13 +64,14 @@ def get_model() -> AutoModelForCausalLM:
     # weight that also encodes token identity and must be reinitialized.
     if hasattr(text_model, "embed_tokens_per_layer"):
         text_model.embed_tokens_per_layer.weight.data.normal_(mean=0.0, std=init_std)
-        logger.info("Reinitialized Per-Layer Embeddings (embed_tokens_per_layer).")
+        if int(os.environ.get("LOCAL_RANK", "0")) == 0:
+            logger.info("Reinitialized Per-Layer Embeddings (embed_tokens_per_layer).")
 
     if model.lm_head.weight.data_ptr() != text_model.embed_tokens.weight.data_ptr():
         model.lm_head.weight.data.normal_(mean=0.0, std=init_std)
-
-    logger.info(f"Pre-trained {cfg.model_name_or_path} Model loaded successfully!")
-    logger.info(f"Parameters:       {model.num_parameters():,}")
-    logger.info(f"VRAM for Weights: {(model.get_memory_footprint() / 1e9):.4f} GB")
+    if int(os.environ.get("LOCAL_RANK", "0")) == 0:
+        logger.info(f"Pre-trained {cfg.model_name_or_path} Model loaded successfully!")
+        logger.info(f"Parameters:       {model.num_parameters():,}")
+        logger.info(f"VRAM for Weights: {(model.get_memory_footprint() / 1e9):.4f} GB")
 
     return model  # type: ignore

@@ -1,8 +1,11 @@
 import os
 import torch
+import numpy as np
+from transformers import EvalPrediction
 from pathlib import Path
 from src.model import get_model
 from transformers import Trainer, TrainingArguments
+from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset
 from datasets import load_from_disk
 import logging
@@ -30,13 +33,13 @@ class PretokenizedCipherDataset(Dataset):
         self.hf_dataset = load_from_disk(str(directory_path))
 
         if max_samples is not None and max_samples < len(self.hf_dataset):
-            if int(os.environ.get("LOCAL_RANK", 0)) == 0:
+            if int(os.environ.get("LOCAL_RANK", "0")) == 0:
                 logger.info(
                     f"Subsetting dataset from {len(self.hf_dataset):,} to {max_samples:,} samples.",
                 )
             self.hf_dataset = self.hf_dataset.select(range(max_samples))
 
-        if len(self.hf_dataset) == 0 and int(os.environ.get("LOCAL_RANK", 0)) == 0:
+        if len(self.hf_dataset) == 0 and int(os.environ.get("LOCAL_RANK", "0")) == 0:
             logger.warning(f"Dataset at {directory_path} is empty!")
 
     def __len__(self) -> int:
@@ -47,10 +50,12 @@ class PretokenizedCipherDataset(Dataset):
         """Fetch one sample and convert token arrays into `torch.long` tensors."""
         item = self.hf_dataset[idx]
 
-        if (
+        is_length_exceeded = (
             len(item["input_ids"]) > cfg.max_context
             or len(item["labels"]) > cfg.max_context
-        ):
+        )
+
+        if is_length_exceeded and int(os.environ.get("LOCAL_RANK", "0")) == 0:
             logger.info(
                 f"Sample {idx} truncated: input_ids {len(item['input_ids'])} -> {cfg.max_context}, labels {len(item['labels'])} -> {cfg.max_context}",
             )
@@ -65,6 +70,92 @@ class PretokenizedCipherDataset(Dataset):
         }
 
 
+def dynamic_padding_collator(
+    features: list[dict[str, torch.Tensor]],
+) -> dict[str, torch.Tensor]:
+    """Dynamically pads sequences in a batch to the longest sequence."""
+    input_ids = [f["input_ids"] for f in features]
+    labels = [f["labels"] for f in features]
+
+    input_ids_padded = pad_sequence(
+        input_ids,
+        batch_first=True,
+        padding_value=cfg.pad_token_id,
+    )
+    labels_padded = pad_sequence(labels, batch_first=True, padding_value=-100)
+
+    attention_mask = (input_ids_padded != cfg.pad_token_id).long()
+
+    return {
+        "input_ids": input_ids_padded,
+        "labels": labels_padded,
+        "attention_mask": attention_mask,
+    }
+
+
+def preprocess_logits_for_metrics(
+    logits: torch.Tensor,
+    labels: torch.Tensor,
+) -> torch.Tensor:
+    """Takes argmax on the GPU to prevent CPU memory blowups during evaluation."""
+    if isinstance(logits, tuple):
+        logits = logits[0]
+
+    return logits.argmax(dim=-1)
+
+
+def compute_metrics(
+    eval_preds: EvalPrediction | tuple[np.ndarray, np.ndarray],
+) -> dict[str, float]:
+    """Compute symbol error rate (SER) strictly after the SEP token (Vectorized)."""
+    if isinstance(eval_preds, tuple):
+        predictions, labels = eval_preds
+    else:
+        predictions = eval_preds.predictions
+        labels = eval_preds.label_ids
+
+    if isinstance(predictions, tuple):
+        predictions = predictions[0]
+    if isinstance(labels, tuple):
+        labels = labels[0]
+
+    # Align predictions with targets for Causal LM
+    predictions = predictions[:, :-1]
+    labels = labels[:, 1:]
+
+    # 1. Locate SEP tokens in the aligned labels
+    is_sep = labels == cfg.sep_token_id
+
+    # 2. Create a mask that is True only AFTER the first SEP token
+    # cumsum gives >0 starting AT the first SEP token.
+    passed_sep = np.cumsum(is_sep, axis=1) > 0
+
+    # Shift right by 1 so the SEP token itself remains False,
+    # but everything strictly after it becomes True.
+    strictly_after_sep = np.zeros_like(passed_sep, dtype=bool)
+    strictly_after_sep[:, 1:] = passed_sep[:, :-1]
+
+    pad_mask = labels != -100
+    eos_mask = labels != cfg.eos_token_id
+
+    final_mask = strictly_after_sep & pad_mask & eos_mask
+
+    # 3. Extract only valid tokens across the entire batch at once
+    val_labels = labels[final_mask]
+    val_preds = predictions[final_mask]
+
+    total_symbols = val_labels.size
+    if total_symbols == 0:
+        logger.warning(
+            "No valid symbols found after SEP token in this evaluation batch.",
+        )
+        return {"ser": 0.0}
+
+    total_errors = np.sum(val_labels != val_preds)
+
+    return {"ser": float(total_errors / total_symbols)}
+
+
 def train() -> None:
     """Start FSDP fine-tuning with Equal Loss Weighting and Optimized Checkpointing."""
     cfg.load_homophones()
@@ -75,7 +166,8 @@ def train() -> None:
     model = get_model()
 
     suffix = "Using" if cfg.use_spaces else "Not using"
-    logger.info(suffix + " space tokens in training.")
+    if int(os.environ.get("LOCAL_RANK", "0")) == 0:
+        logger.info(suffix + " space tokens in training.")
 
     train_ds = PretokenizedCipherDataset(
         cfg.tokenized_train_dir,
@@ -91,10 +183,8 @@ def train() -> None:
         learning_rate=cfg.learning_rate,
         weight_decay=cfg.weight_decay,
         warmup_steps=cfg.warmup_steps,
-        # gradient_checkpointing=cfg.gradient_checkpointing,
-        # gradient_checkpointing_kwargs={"use_reentrant": False},
         eval_strategy="steps",
-        eval_steps=cfg.save_steps,
+        eval_steps=cfg.eval_steps,
         per_device_eval_batch_size=cfg.batch_size,
         eval_accumulation_steps=cfg.grad_accum,
         logging_steps=cfg.log_steps,
@@ -102,7 +192,7 @@ def train() -> None:
         fp16=cfg.fp16,
         bf16=cfg.bf16,
         tf32=cfg.tf32,
-        dataloader_num_workers=4,
+        dataloader_num_workers=8,
         dataloader_pin_memory=True,
         ddp_find_unused_parameters=False,
         save_total_limit=2,
@@ -127,16 +217,21 @@ def train() -> None:
         args=args,
         train_dataset=train_ds,
         eval_dataset=val_ds,
+        data_collator=dynamic_padding_collator,
+        compute_metrics=compute_metrics,
+        preprocess_logits_for_metrics=preprocess_logits_for_metrics,
     )
 
     checkpoint = None
     if os.path.isdir(current_output_dir) and any(current_output_dir.iterdir()):
         checkpoint = True
-        logger.info(
-            f"Checkpoint detected in {current_output_dir} - Resuming training...",
-        )
+        if int(os.environ.get("LOCAL_RANK", "0")) == 0:
+            logger.info(
+                f"Checkpoint detected in {current_output_dir} - Resuming training...",
+            )
     else:
-        logger.info(f"Initiating Fine-tuning on {torch.cuda.get_device_name(0)}...")
+        if int(os.environ.get("LOCAL_RANK", "0")) == 0:
+            logger.info(f"Initiating Fine-tuning on {torch.cuda.get_device_name(0)}...")
 
     trainer.train(resume_from_checkpoint=checkpoint)
     trainer.save_model(f"{current_output_dir}/model")
