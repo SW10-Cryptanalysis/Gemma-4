@@ -43,10 +43,10 @@ parser.add_argument(
     help="HuggingFace model identifier or local path to the pre-trained model. Required.",
 )
 parser.add_argument(
-    "--dataset-suffix",
+    "--dataset-path",
     type=str,
-    default="",
-    help="Suffix appended to the dataset directory name (e.g., '_truncated_4000', '_full').",
+    default=None,
+    help="Path to the dataset (e.g., 'tokenized_spaced', 'tokenized_normal_truncated_4000').",
 )
 cli_args, _ = parser.parse_known_args()
 
@@ -59,6 +59,10 @@ if cli_args.model_family is None:
 if cli_args.model_path is None:
     _errors.append(
         "  --model-path is required. Provide a HuggingFace model ID or local path.",
+    )
+if cli_args.dataset_path == None:
+    _errors.append(
+        "  --dataset-path is required. Specify the dataset subdirectory (e.g., 'tokenized_normal', 'tokenized_spaced_truncated_4000').",
     )
 
 if _errors:
@@ -86,7 +90,7 @@ class Config:
     # HF Model Identifier and family — set from CLI flags
     model_name_or_path: str = cli_args.model_path
     model_family: str = cli_args.model_family
-    dataset_suffix: str = cli_args.dataset_suffix
+    dataset_path: str = cli_args.dataset_path
 
     buffer: int = 10
     unique_letters: int = 26
@@ -162,14 +166,12 @@ class Config:
     @property
     def tokenized_train_dir(self) -> Path:
         """Path for tokenized training data."""
-        suffix = "spaced" if self.use_spaces else "normal"
-        return self.data_dir / f"tokenized_{suffix}{self.dataset_suffix}" / "Training"
+        return self.data_dir / self.dataset_path / "Training"
 
     @property
     def tokenized_val_dir(self) -> Path:
         """Path for tokenized validation data."""
-        suffix = "spaced" if self.use_spaces else "normal"
-        return self.data_dir / f"tokenized_{suffix}{self.dataset_suffix}" / "Validation"
+        return self.data_dir / self.dataset_path / "Validation"
 
     def load_homophones(self) -> None:
         """Load homophone mappings from the metadata file."""
