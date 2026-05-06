@@ -89,8 +89,6 @@ def train() -> None:
         learning_rate=cfg.learning_rate,
         weight_decay=cfg.weight_decay,
         warmup_ratio=cfg.warmup_ratio,
-        gradient_checkpointing=cfg.gradient_checkpointing,
-        gradient_checkpointing_kwargs={"use_reentrant": False},
         eval_strategy="steps",
         eval_steps=cfg.save_steps,
         per_device_eval_batch_size=cfg.batch_size,
