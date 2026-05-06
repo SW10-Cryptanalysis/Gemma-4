@@ -53,11 +53,11 @@ class PretokenizedCipherDataset(Dataset):
         if (
             len(item["input_ids"]) > cfg.max_context
             or len(item["labels"]) > cfg.max_context
+            and int(os.environ.get("LOCAL_RANK", "0")) == 0
         ):
-            if int(os.environ.get("LOCAL_RANK", "0")) == 0:
-                logger.info(
-                    f"Sample {idx} truncated: input_ids {len(item['input_ids'])} -> {cfg.max_context}, labels {len(item['labels'])} -> {cfg.max_context}",
-                )
+            logger.info(
+                f"Sample {idx} truncated: input_ids {len(item['input_ids'])} -> {cfg.max_context}, labels {len(item['labels'])} -> {cfg.max_context}",
+            )
 
         # Mandatory Training Objective (Equal Loss Weighting)
         input_ids = item["input_ids"][: cfg.max_context]
@@ -77,7 +77,9 @@ def dynamic_padding_collator(
     labels = [f["labels"] for f in features]
 
     input_ids_padded = pad_sequence(
-        input_ids, batch_first=True, padding_value=cfg.pad_token_id
+        input_ids,
+        batch_first=True,
+        padding_value=cfg.pad_token_id,
     )
     labels_padded = pad_sequence(labels, batch_first=True, padding_value=-100)
 
@@ -91,7 +93,8 @@ def dynamic_padding_collator(
 
 
 def preprocess_logits_for_metrics(
-    logits: torch.Tensor, labels: torch.Tensor
+    logits: torch.Tensor,
+    labels: torch.Tensor,
 ) -> torch.Tensor:
     """Takes argmax on the GPU to prevent CPU memory blowups during evaluation."""
     if isinstance(logits, tuple):
@@ -143,7 +146,7 @@ def compute_metrics(
     total_symbols = val_labels.size
     if total_symbols == 0:
         logger.warning(
-            "No valid symbols found after SEP token in this evaluation batch."
+            "No valid symbols found after SEP token in this evaluation batch.",
         )
         return {"ser": 0.0}
 
