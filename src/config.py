@@ -137,7 +137,8 @@ class Config:
     learning_rate: float = 1e-5
     epochs: int = 5
     log_steps: int = 100
-    save_steps: int = 2500
+    eval_steps: int = 5000
+    save_steps: int = 10000
     max_train_samples: int = 500000
     use_spaces: bool = not cli_args.without_spaces
     weight_decay: float = 0.01

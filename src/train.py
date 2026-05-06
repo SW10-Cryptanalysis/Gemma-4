@@ -180,7 +180,7 @@ def train() -> None:
         weight_decay=cfg.weight_decay,
         warmup_steps=cfg.warmup_steps,
         eval_strategy="steps",
-        eval_steps=cfg.save_steps,
+        eval_steps=cfg.eval_steps,
         per_device_eval_batch_size=cfg.batch_size,
         eval_accumulation_steps=cfg.grad_accum,
         logging_steps=cfg.log_steps,
