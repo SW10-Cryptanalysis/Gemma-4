@@ -319,3 +319,45 @@ class TestComputeMetrics:
 
         metrics = compute_metrics((preds, labels))
         assert metrics["ser"] == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Preprocess Logits For Metrics
+# ---------------------------------------------------------------------------
+
+
+class TestPreprocessLogitsForMetrics:
+    def test_preprocess_logits_standard_tensor(self):
+        from src.train import preprocess_logits_for_metrics
+
+        logits = torch.tensor(
+            [
+                [[0.1, 0.9, 0.0, 0.0], [0.0, 0.1, 0.8, 0.1], [1.0, 0.0, 0.0, 0.0]],
+                [[0.0, 0.0, 0.0, 1.0], [0.4, 0.6, 0.0, 0.0], [0.2, 0.2, 0.5, 0.1]],
+            ]
+        )
+        labels = torch.zeros((2, 3), dtype=torch.long)
+
+        processed = preprocess_logits_for_metrics(logits, labels)
+
+        expected = torch.tensor([[1, 2, 0], [3, 1, 2]])
+
+        assert processed.shape == (2, 3)
+        assert torch.equal(processed, expected)
+
+    def test_preprocess_logits_tuple_input(self):
+        from src.train import preprocess_logits_for_metrics
+
+        main_logits = torch.tensor([[[0.1, 0.8, 0.1], [0.9, 0.0, 0.1]]])
+
+        mock_past_keys = torch.tensor([1, 2, 3])
+        logits_tuple = (main_logits, mock_past_keys)
+
+        labels = torch.zeros((1, 2), dtype=torch.long)
+
+        processed = preprocess_logits_for_metrics(logits_tuple, labels)  # type: ignore
+
+        expected = torch.tensor([[1, 0]])
+
+        assert processed.shape == (1, 2)
+        assert torch.equal(processed, expected)

@@ -50,11 +50,12 @@ class PretokenizedCipherDataset(Dataset):
         """Fetch one sample and convert token arrays into `torch.long` tensors."""
         item = self.hf_dataset[idx]
 
-        if (
+        is_length_exceeded = (
             len(item["input_ids"]) > cfg.max_context
             or len(item["labels"]) > cfg.max_context
-            and int(os.environ.get("LOCAL_RANK", "0")) == 0
-        ):
+        )
+
+        if is_length_exceeded and int(os.environ.get("LOCAL_RANK", "0")) == 0:
             logger.info(
                 f"Sample {idx} truncated: input_ids {len(item['input_ids'])} -> {cfg.max_context}, labels {len(item['labels'])} -> {cfg.max_context}",
             )
